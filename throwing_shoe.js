@@ -202,8 +202,8 @@ function to_canvas_coords(v3) {
 
 var grid_lines = [
   // vertical
-  [vec3.fromValues(-5,4,5), vec3.fromValues(-5,4,20)],
-  [vec3.fromValues(5,4,5), vec3.fromValues(5,4,20)],
+  [vec3.fromValues(-1,4,0.1), vec3.fromValues(-1,4,20)],
+  [vec3.fromValues(1,4,0.1), vec3.fromValues(1,4,20)],
   // horizontal
   [vec3.fromValues(-5,4,5), vec3.fromValues(5,4,5)],
   [vec3.fromValues(-5,4,10), vec3.fromValues(5,4,10)],
@@ -297,7 +297,7 @@ function run() {
   set_projection_matrix(projection, aspect, fov_degrees, near, far);
 
   // transform from world coords to camera coords
-  mat4.fromTranslation(modelview, [0, 1, 0]);
+  mat4.fromTranslation(modelview, [0, 1, 2]);
   //mat4.rotateX(modelview, modelview, 0.15);
   //mat4.rotateY(modelview, modelview, 0.15);
 

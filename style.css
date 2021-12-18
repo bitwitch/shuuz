@@ -1,0 +1,17 @@
+.container {
+  position: relative;
+}
+
+#stage {
+  position: relative;
+  z-index: 1;
+}
+
+#ui {
+  position: absolute;
+  z-index: 2;
+  top: 0;
+  left: 0;
+  display: none;
+  pointer-events: none;
+}
