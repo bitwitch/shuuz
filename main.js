@@ -799,7 +799,7 @@ var h = 0;
 var o_z = 0;
 var grid_lines = [
   // into screen 
-  [vec3.fromValues(-2,h,0+o_z), vec3.fromValues(-2,h,14+o_z)],
+  [vec3.fromValues(-1,h,0+o_z), vec3.fromValues(-1,h,14+o_z)],
   [vec3.fromValues(1,h,0+o_z), vec3.fromValues(1,h,14+o_z)],
   // horizontal
   [vec3.fromValues(-1,h,0+o_z), vec3.fromValues(1,h,0+o_z)],
