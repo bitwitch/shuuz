@@ -16,12 +16,13 @@ var game_states = {
   "THROWING": 6
 }
 
-var gravity = 9;
+var gravity = -9;
 
-var fov_degrees = 70;
+var fov_degrees = 70; // fov y
 var near = 0.1;
-var modelview = mat4.create();
+var view = mat4.create();
 var projection = mat4.create();
+var inverse_projection_view = mat4.create(); // used for screen to world coords
 
 var game_state = game_states.CHARACTER_SELECT;
 var turn_state = game_states.NEW_ROUND;
@@ -132,11 +133,10 @@ function run() {
 }
 
 function set_projection_matrix(matrix, aspect, fov_degrees, near, far) {
-  var scale = Math.tan(fov_degrees * 0.5 * Math.PI / 180) * near;
-  var r = aspect * scale;
-  var l = -r;
-  var t = scale;
-  var b = -t;
+  var t = Math.tan(fov_degrees * 0.5 * Math.PI / 180) * near;    // top
+  var r = aspect * t;                                            // right
+  var l = -r;                                                    // left
+  var b = -t;                                                    // bottom
 
   matrix[0] = 2 * near / (r - l);
   matrix[1] = 0;
@@ -160,7 +160,8 @@ function set_projection_matrix(matrix, aspect, fov_degrees, near, far) {
 }
 
 function set_view_matrix(matrix) {
-  mat4.fromTranslation(matrix, [0, 2, 2.9]);
+  mat4.fromTranslation(matrix, [0, -2, -2]);
+  //mat4.fromTranslation(matrix, [0, 2, 2.9]);
   mat4.rotateX(matrix, matrix, 0.41);
   var s = 2.2;
   mat4.scale(matrix, matrix, [s,s,s*.9]);
@@ -173,7 +174,10 @@ function init() {
   var far = 100;
   set_projection_matrix(projection, aspect, fov_degrees, near, far);
 
-  set_view_matrix(modelview);
+  set_view_matrix(view);
+
+  mat4.mul(inverse_projection_view, projection, view);
+  mat4.invert(inverse_projection_view, inverse_projection_view);
 
   // init start menu buttons
   ctx.font = "bold 48px Arial";
@@ -646,7 +650,7 @@ function reset_round_girl() {
 function reset_horseshoes() {
   for (var i=0; i<horseshoes.length; i++) {
     //vec3.zero(horseshoes[i].position);
-    vec3.set(horseshoes[i].position, 0,-0.3,0);
+    vec3.set(horseshoes[i].position, 0,0.3,0);
     vec3.zero(horseshoes[i].velocity);
     vec3.zero(horseshoes[i].rotation);
   }
@@ -689,11 +693,14 @@ function simulate(dt) {
 }
 
 
+var count = 0;
 function update(dt) {
   if (input.key.escape.pressed) {
     quit = true;
     return
   }
+
+  if (count++ > 1000) quit = true;
 
   switch (turn_state) {
     case game_states.NEW_ROUND:
@@ -753,7 +760,7 @@ function draw(dt) {
 
     
     if (turn_state == game_states.THROWING) {
-      draw_grid();
+      //draw_grid();
 
       // draw horseshoe
       //if (active_horseshoe >= 0) {
@@ -763,12 +770,15 @@ function draw(dt) {
       //}
     }
 
+    draw_grid();
+
     // draw horseshoe
     if (active_horseshoe >= 0) {
       var shoe = horseshoes[active_horseshoe];
       var coords = world_to_screen_coords(shoe.position);
-      console.log("after: ", coords);
-      console.log("shoe position: ", shoe.position);
+      //console.log("after: ", coords);
+      if (count % 16 == 0) 
+        console.log("shoe position: ", shoe.position[0], ", ", shoe.position[1], ", ", shoe.position[2]);
       ctx.fillStyle = "#FF0000";
       ctx.fillRect(coords[0], coords[1], 10, 10);
     }
@@ -799,13 +809,13 @@ var h = 0;
 var o_z = 0;
 var grid_lines = [
   // into screen 
-  [vec3.fromValues(-1,h,0+o_z), vec3.fromValues(-1,h,14+o_z)],
-  [vec3.fromValues(1,h,0+o_z), vec3.fromValues(1,h,14+o_z)],
+  [vec3.fromValues(-1,h,0+o_z), vec3.fromValues(-1,h,-14+o_z)],
+  [vec3.fromValues(1,h,0+o_z), vec3.fromValues(1,h,-14+o_z)],
   // horizontal
   [vec3.fromValues(-1,h,0+o_z), vec3.fromValues(1,h,0+o_z)],
-  [vec3.fromValues(-1,h,2+o_z), vec3.fromValues(1,h,2+o_z)],
-  [vec3.fromValues(-1,h,12+o_z), vec3.fromValues(1,h,12+o_z)],
-  [vec3.fromValues(-1,h,14+o_z), vec3.fromValues(1,h,14+o_z)],
+  [vec3.fromValues(-1,h,-2+o_z), vec3.fromValues(1,h,-2+o_z)],
+  [vec3.fromValues(-1,h,-12+o_z), vec3.fromValues(1,h,-12+o_z)],
+  [vec3.fromValues(-1,h,-14+o_z), vec3.fromValues(1,h,-14+o_z)],
 ]
 
 for (var i=0; i<grid_lines.length; i++) {
@@ -845,24 +855,14 @@ function update_new_round(dt) {
   }
 }
 
-var count = 0
 function update_horizontal_position(dt) {
-
-  if (count++ > 1000) quit = true;
-
   for (var i=0; i<players.length; i++) {
-    if (!players[i].active) continue;
-    var character = characters[players[i].character_id];
-    players[i].x = input.mouse.x - character.width/2; 
-
-    // TEMPORARY
-    var x_scale = 1;
+    var player = players[i];
+    if (!player.active) continue;
+    var character = characters[player.character_id];
+    player.x = input.mouse.x - character.width/2; 
     var shoe = horseshoes[active_horseshoe];
-    shoe.position[0] = x_scale * ((2 * (players[i].x + character.width) / canvas.width) - 1);
-    //shoe.position = screen_to_world_coords([players[i].x, canvas.height-100]);
-    //console.log("x: ", players[i].x);
-    //console.log(shoe.position);
-    //
+    shoe.position = screen_to_world_coords([player.x + character.width-25, canvas.height-100], 0.9);
   }
 
   if (input.mouse.button_left.pressed) {
@@ -882,7 +882,7 @@ function update_angle_select(dt) {
 
     // TODO(shaw): calculate throwing velocity based on power and angle
     var velocity = horseshoes[active_horseshoe].velocity;
-    vec3.set(velocity, 0.25, -6, 10);
+    vec3.set(velocity, 0.25, 6, -10);
 
     turn_state = game_states.THROWING;
     ui_reset();
@@ -918,7 +918,7 @@ function world_to_screen_coords(v3) {
 
   // world to camera space coords
   var coords = vec4.fromValues(v3[0], v3[1], v3[2], 1);
-  vec4.transformMat4(coords, coords, modelview);
+  vec4.transformMat4(coords, coords, view);
 
   // perspective projection
   vec4.transformMat4(coords, coords, projection);
@@ -935,42 +935,19 @@ function world_to_screen_coords(v3) {
   return canvas_coords;
 }
 
+
 function screen_to_world_coords(v2, z=-1) {
-  var world_coords = vec3.fromValues(v2[0], v2[1], z);
+  var world_coords = vec4.fromValues(v2[0], v2[1], z, 1);
 
   // screen to NDC coords
-  //world_coords[0] = (world_coords[0] * 2 / canvas.width) - 1;
-  //world_coords[1] = (2 * (1 - (world_coords[1] / canvas.height))) - 1;
+  world_coords[0] = (world_coords[0] * 2 / canvas.width) - 1;
+  world_coords[1] = (2 * (1 - (world_coords[1] / canvas.height))) - 1;
 
-  world_coords[0] = 1 - (world_coords[0] / canvas.width);
-  world_coords[1] = 1 - (world_coords[1] / canvas.height);
+  // perspective
+  vec4.transformMat4(world_coords, world_coords, inverse_projection_view);
+  vec4.div(world_coords, world_coords, [world_coords[3], world_coords[3], world_coords[3], 1]);
 
-  var image_height = 2 * Math.tan(fov_degrees * 0.5 * Math.PI / 180) * near;
-  var image_width  = image_height * (canvas.width / canvas.height);
-
-  var image_x = (world_coords[0] * 2  * image_width) - image_width;
-  var image_y = (world_coords[1] * 2  * image_height) - image_height;
-
-  // camera coords
-  var cam_z = 2.9;
-  world_coords[0] = (image_x / near) * cam_z;
-  //world_coords[1] = (image_y / near) * cam_z;
-  world_coords[1] = 0;
-  world_coords[2] = 0;
-
-  //var transform = mat4.create();
-  //mat4.mul(transform, projection, modelview);
-  //mat4.invert(transform, transform);
-
-  //vec4.transformMat4(world_coords, world_coords, transform);
-  
-  //vec4.div(world_coords, world_coords, [world_coords[3], world_coords[3], world_coords[3], 1]);
-  //world_coords[1] = 0;
-  //world_coords[2] = 0;
-  //world_coords[3] = 1;
-
-  //console.log(world_coords);
-  return world_coords;
+  return vec3.fromValues(world_coords[0], world_coords[1], world_coords[2]);
 }
 
 
@@ -986,7 +963,7 @@ function update_throwing(dt) {
 
   // if grounded, set y position to 0
   var ground_height = 0;
-  if (new_position[1] >= ground_height) {
+  if (new_position[1] <= ground_height) {
     vec3.set(new_position, new_position[0], ground_height, new_position[2]);
     shoe.velocity[1] = 0;
     vec3.scale(shoe.velocity, shoe.velocity, 0.9);
