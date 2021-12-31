@@ -18,9 +18,8 @@ var game_states = {
 
 var gravity = -9;
 
-var fov_degrees = 70; // fov y
-var near = 0.1;
 var view = mat4.create();
+var closeup_view = mat4.create();
 var projection = mat4.create();
 var inverse_projection_view = mat4.create(); // used for screen to world coords
 
@@ -92,6 +91,12 @@ var input = {
     down:   { is_down: false, pressed: false, was_down: false },
     left:   { is_down: false, pressed: false, was_down: false },
     right:  { is_down: false, pressed: false, was_down: false },
+    w:  { is_down: false, pressed: false, was_down: false },
+    a:  { is_down: false, pressed: false, was_down: false },
+    s:  { is_down: false, pressed: false, was_down: false },
+    d:  { is_down: false, pressed: false, was_down: false },
+    q:  { is_down: false, pressed: false, was_down: false },
+    e:  { is_down: false, pressed: false, was_down: false },
     enter:  { is_down: false, pressed: false, was_down: false },
     escape: { is_down: false, pressed: false, was_down: false }
   },
@@ -159,23 +164,28 @@ function set_projection_matrix(matrix, aspect, fov_degrees, near, far) {
   matrix[15] = 0;
 }
 
-function set_view_matrix(matrix) {
-  mat4.fromTranslation(matrix, [0, -2, -2]);
-  //mat4.fromTranslation(matrix, [0, 2, 2.9]);
-  mat4.rotateX(matrix, matrix, 0.41);
-  var s = 2.2;
-  mat4.scale(matrix, matrix, [s,s,s*.9]);
-}
 
 function init() {
   resize_canvas(canvas);
 
   var aspect = canvas.width / canvas.height;
+  var near = 0.1;
   var far = 100;
+  var fov_degrees = 70; // fov y
   set_projection_matrix(projection, aspect, fov_degrees, near, far);
 
-  set_view_matrix(view);
+  // set view matrix
+  var s = 2.2;
+  mat4.fromRotation(view, 0.41, [1,0,0]);
+  mat4.translate(view, view, [0, -3, -2]);
+  mat4.scale(view, view, [s,s,s*.9]);
 
+  // set closeup view matrix
+  mat4.fromRotation(closeup_view, 1.2, [1,0,0]);
+  mat4.translate(closeup_view, closeup_view, [0, -2.5, 24.3]);
+  mat4.scale(closeup_view, closeup_view, [s,s,s*.9]);
+
+  // set inverse of projection * view
   mat4.mul(inverse_projection_view, projection, view);
   mat4.invert(inverse_projection_view, inverse_projection_view);
 
@@ -278,6 +288,24 @@ function handle_keydown(e) {
   case "ArrowRight":
       key = input.key.right;
       break;
+  case "w":
+      key = input.key.w;
+      break;
+  case "a":
+      key = input.key.a;
+      break;
+  case "s":
+      key = input.key.s;
+      break;
+  case "d":
+      key = input.key.d;
+      break;
+  case "q":
+      key = input.key.q;
+      break;
+  case "e":
+      key = input.key.e;
+      break;
   case "Enter":
       key = input.key.enter;
       break;
@@ -309,6 +337,24 @@ function handle_keyup(e) {
       break;
   case "ArrowRight":
       key = input.key.right;
+      break;
+  case "w":
+      key = input.key.w;
+      break;
+  case "a":
+      key = input.key.a;
+      break;
+  case "s":
+      key = input.key.s;
+      break;
+  case "d":
+      key = input.key.d;
+      break;
+  case "q":
+      key = input.key.q;
+      break;
+  case "e":
+      key = input.key.e;
       break;
   case "Enter":
       key = input.key.enter;
@@ -692,6 +738,32 @@ function simulate(dt) {
   draw(dt);
 }
 
+function debug_move_camera(dt) {
+  var speed = 3;
+  if (input.key.w.is_down)
+    mat4.translate(view, view, [0, 0, speed*dt]);
+  else if (input.key.s.is_down)
+    mat4.translate(view, view, [0, 0, -speed*dt]);
+
+  if (input.key.a.is_down)
+    mat4.translate(view, view, [speed*dt, 0, 0]);
+  else if (input.key.d.is_down)
+    mat4.translate(view, view, [-speed*dt, 0, 0]);
+
+  if (input.key.up.is_down)
+    mat4.translate(view, view, [0, -speed*dt, 0]);
+  else if (input.key.down.is_down)
+    mat4.translate(view, view, [0, speed*dt, 0]);
+
+  if (input.key.q.is_down) 
+    mat4.rotateX(view, view, 0.4*dt);
+  else if (input.key.e.is_down)
+    mat4.rotateX(view, view, -0.4*dt);
+
+
+
+
+}
 
 var count = 0;
 function update(dt) {
@@ -700,7 +772,11 @@ function update(dt) {
     return
   }
 
-  if (count++ > 1000) quit = true;
+  //if (count++ > 1000) quit = true;
+
+
+  debug_move_camera(dt);
+
 
   switch (turn_state) {
     case game_states.NEW_ROUND:
@@ -734,13 +810,31 @@ function update(dt) {
 }
 
 function draw(dt) {
-  if (turn_state == game_states.THROWING && false /* horseshoe close to ground */) {
+  var shoe = horseshoes[active_horseshoe];
+  var switch_to_closeup_height = 1;
+
+  if (turn_state == game_states.THROWING &&
+      shoe.position[1] <= switch_to_closeup_height &&
+      shoe.velocity[1] <= 0) 
+  {
     // draw pit closeup
     ctx.drawImage(pit_close, 0, 0, canvas.width, canvas.height);
+
+    draw_grid(closeup_view);
+
+    // draw horseshoe
+    var coords = world_to_screen_coords(shoe.position, closeup_view);
+    //console.log("after: ", coords);
+    //if (count % 16 == 0) 
+      //console.log("shoe position: ", shoe.position[0], ", ", shoe.position[1], ", ", shoe.position[2]);
+    ctx.fillStyle = "#FF0000";
+    ctx.fillRect(coords[0], coords[1], 10, 10);
 
   } else {
     // draw wide background
     ctx.drawImage(game_background, 0, 0, canvas.width, canvas.height);
+
+    draw_grid();
 
     // draw round_girl
     if (turn_state == game_states.NEW_ROUND)
@@ -752,7 +846,7 @@ function draw(dt) {
       var character = characters[player.character_id];
 
       if (player.active) {
-        ctx.drawImage(character.image, player.x, player.y, character.width, character.height);
+        //ctx.drawImage(character.image, player.x, player.y, character.width, character.height);
       } else {
         // draw player sitting
       }
@@ -770,15 +864,13 @@ function draw(dt) {
       //}
     }
 
-    draw_grid();
 
     // draw horseshoe
     if (active_horseshoe >= 0) {
-      var shoe = horseshoes[active_horseshoe];
       var coords = world_to_screen_coords(shoe.position);
       //console.log("after: ", coords);
-      if (count % 16 == 0) 
-        console.log("shoe position: ", shoe.position[0], ", ", shoe.position[1], ", ", shoe.position[2]);
+      //if (count % 16 == 0) 
+        //console.log("shoe position: ", shoe.position[0], ", ", shoe.position[1], ", ", shoe.position[2]);
       ctx.fillStyle = "#FF0000";
       ctx.fillRect(coords[0], coords[1], 10, 10);
     }
@@ -826,13 +918,40 @@ for (var i=0; i<grid_lines.length; i++) {
 
 console.log(grid_lines);
 
-function draw_grid() {
-  var line, a, b;
+function draw_grid(view_matrix=view, fill=true) {
+  var line, point, a, b, c, d;
+
+  if (fill) {
+    ctx.fillStyle = 'blue';
+    a = world_to_screen_coords(grid_lines[2][0], view_matrix);
+    b = world_to_screen_coords(grid_lines[3][0], view_matrix);
+    c = world_to_screen_coords(grid_lines[3][1], view_matrix);
+    d = world_to_screen_coords(grid_lines[2][1], view_matrix);
+    ctx.beginPath();
+    ctx.moveTo(a[0], a[1]);
+    ctx.lineTo(b[0], b[1]);
+    ctx.lineTo(c[0], c[1]);
+    ctx.lineTo(d[0], d[1]);
+    ctx.fill();
+
+    ctx.fillStyle = 'orange';
+    a = world_to_screen_coords(grid_lines[4][0], view_matrix);
+    b = world_to_screen_coords(grid_lines[5][0], view_matrix);
+    c = world_to_screen_coords(grid_lines[5][1], view_matrix);
+    d = world_to_screen_coords(grid_lines[4][1], view_matrix);
+    ctx.beginPath();
+    ctx.moveTo(a[0], a[1]);
+    ctx.lineTo(b[0], b[1]);
+    ctx.lineTo(c[0], c[1]);
+    ctx.lineTo(d[0], d[1]);
+    ctx.fill();
+  }
+
   ctx.strokeStyle = 'black';
   for (var i=0; i<grid_lines.length; i++) {
     line = grid_lines[i];
-    a = world_to_screen_coords(line[0]);
-    b = world_to_screen_coords(line[1]);
+    a = world_to_screen_coords(line[0], view_matrix);
+    b = world_to_screen_coords(line[1], view_matrix);
 
     ctx.beginPath();
     ctx.moveTo(a[0], a[1]);
@@ -862,7 +981,7 @@ function update_horizontal_position(dt) {
     var character = characters[player.character_id];
     player.x = input.mouse.x - character.width/2; 
     var shoe = horseshoes[active_horseshoe];
-    shoe.position = screen_to_world_coords([player.x + character.width-25, canvas.height-100], 0.9);
+    shoe.position = screen_to_world_coords([player.x + character.width-35, canvas.height-100], 0.9);
   }
 
   if (input.mouse.button_left.pressed) {
@@ -882,7 +1001,7 @@ function update_angle_select(dt) {
 
     // TODO(shaw): calculate throwing velocity based on power and angle
     var velocity = horseshoes[active_horseshoe].velocity;
-    vec3.set(velocity, 0.25, 6, -10);
+    vec3.set(velocity, -0.25, 6, -8.2);
 
     turn_state = game_states.THROWING;
     ui_reset();
@@ -913,19 +1032,27 @@ function update_angle_select(dt) {
 }
 
 
-function world_to_screen_coords(v3) {
+function world_to_screen_coords(v3, view_matrix=view) {
   var canvas_coords = vec2.create();
 
   // world to camera space coords
   var coords = vec4.fromValues(v3[0], v3[1], v3[2], 1);
-  vec4.transformMat4(coords, coords, view);
+  vec4.transformMat4(coords, coords, view_matrix);
 
   // perspective projection
   vec4.transformMat4(coords, coords, projection);
 
-  // homogenous to cartesian coords
+  // homogenous to cartesian coords, in NDC space
   if (coords[3] != 1) {
     vec4.div(coords, coords, [coords[3], coords[3], coords[3], 1]);
+  }
+
+  // temp hack to notify outside clip
+  if (coords[0] < -1 || coords[0] > 1 ||
+      coords[1] < -1 || coords[1] > 1 ||
+      coords[2] < -1 || coords[2] > 1)
+  {
+    return [-1,-1];
   }
 
   // viewport transform
@@ -971,8 +1098,6 @@ function update_throwing(dt) {
 
   // commit position change
   vec3.copy(shoe.position, new_position);
-
-  // draw
 }
 
 
