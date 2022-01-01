@@ -36,15 +36,25 @@ var start_menu = {
 }
 
 var ui_state = { 
-  "arc_fill": {
+  "dirty": false,         // set to true to trigger a ui repaint
+  "arc" : {
+    "active": true,
     "width": 0,
-    "height_max": 0,
+    "height": 0,
     "left": 0,
-    "bottom": 0,
-    "fill_max": 0, 
-    "fill_amount": 0
+    "top": 0,
+    "arc_fill": {
+      "width": 0,
+      "height_max": 0,
+      "left": 0,
+      "bottom": 0,
+      "fill_max": 0, 
+      "fill_amount": 0
+    }
   }
 }
+
+var closeup = false;
 
 // order must match order of character_select.images
 // joe, al, sid, lefty
@@ -58,8 +68,8 @@ var character_select = {
 };
 
 var players = [
-  { character_id: 0, x: 0, y: 0, score: 0, shoes_left: 0, active: false },
-  { character_id: 0, x: 0, y: 0, score: 0, shoes_left: 0, active: false }
+  { id: 0, character_id: 0, x: 0, y: 0, score: 0, shoes_left: 0, active: false },
+  { id: 1, character_id: 0, x: 0, y: 0, score: 0, shoes_left: 0, active: false }
 ];
 
 var active_horseshoe = 0;
@@ -621,19 +631,29 @@ function character_select_update(dt) {
 // 
 
 function ui_reset() {
-  var arc_width = 0.15 * ui_canvas.width;
-  var arc_height = 0.63 * ui_canvas.height;
-  var arc_left = ui_canvas.width - arc_width;
-  var arc_top = ui_canvas.height - arc_height;
+  var arc = ui_state.arc;
+  var arc_fill = ui_state.arc.arc_fill;
 
-  ui_state.arc_fill.width = 0.20 * arc_width;
-  ui_state.arc_fill.height_max = 0.75 * arc_height; 
-  ui_state.arc_fill.left = arc_left + (0.65 * arc_width);
-  ui_state.arc_fill.bottom = arc_top + (0.93 * arc_height);
+  console.log(arc);
+  arc.width = 0.15 * ui_canvas.width;
+  arc.height = 0.63 * ui_canvas.height;
+  arc.left = ui_canvas.width - arc.width;
+  arc.top = ui_canvas.height - arc.height;
 
-  ui_state.arc_fill.fill_max = 5000; // arbitrary 
+  arc_fill.width = 0.20 * arc.width;
+  arc_fill.height_max = 0.75 * arc.height; 
+  arc_fill.left = arc.left + (0.65 * arc.width);
+  arc_fill.bottom = arc.top + (0.93 * arc.height);
+  arc_fill.fill_max = 5000; // arbitrary 
+  arc_fill.fill_amount = 0;
 
-  ui_ctx.drawImage(ui_arc, arc_left, arc_top, arc_width, arc_height);
+  ui_state.dirty = false;
+}
+
+
+function ui_arc_reset() {
+  ui_state.arc.arc_fill.fill_amount = 0;
+  ui_state.dirty = true;
 }
 
 
@@ -735,7 +755,9 @@ function get_active_player() {
 
 function simulate(dt) {
   update(dt);
-  draw(dt);
+  draw();
+  if (ui_state.dirty) 
+    draw_ui();
 }
 
 function debug_move_camera(dt) {
@@ -774,9 +796,7 @@ function update(dt) {
 
   //if (count++ > 1000) quit = true;
 
-
   debug_move_camera(dt);
-
 
   switch (turn_state) {
     case game_states.NEW_ROUND:
@@ -809,29 +829,25 @@ function update(dt) {
 
 }
 
-function draw(dt) {
+function draw() {
+  // TODO(shaw): clearRect if backgrounds get moved to a new layer
+
   var shoe = horseshoes[active_horseshoe];
   var switch_to_closeup_height = 1;
+  var view_matrix = view;
 
-  if (turn_state == game_states.THROWING &&
-      shoe.position[1] <= switch_to_closeup_height &&
-      shoe.velocity[1] <= 0) 
-  {
+  if (closeup) {
+    view_matrix = closeup_view;
+
     // draw pit closeup
+    // TODO(shaw): could move this to another layer to optimize drawing
     ctx.drawImage(pit_close, 0, 0, canvas.width, canvas.height);
 
     draw_grid(closeup_view);
 
-    // draw horseshoe
-    var coords = world_to_screen_coords(shoe.position, closeup_view);
-    //console.log("after: ", coords);
-    //if (count % 16 == 0) 
-      //console.log("shoe position: ", shoe.position[0], ", ", shoe.position[1], ", ", shoe.position[2]);
-    ctx.fillStyle = "#FF0000";
-    ctx.fillRect(coords[0], coords[1], 10, 10);
-
   } else {
     // draw wide background
+    // TODO(shaw): could move this to another layer to optimize drawing
     ctx.drawImage(game_background, 0, 0, canvas.width, canvas.height);
 
     draw_grid();
@@ -864,36 +880,38 @@ function draw(dt) {
       //}
     }
 
-
-    // draw horseshoe
-    if (active_horseshoe >= 0) {
-      var coords = world_to_screen_coords(shoe.position);
-      //console.log("after: ", coords);
-      //if (count % 16 == 0) 
-        //console.log("shoe position: ", shoe.position[0], ", ", shoe.position[1], ", ", shoe.position[2]);
-      ctx.fillStyle = "#FF0000";
-      ctx.fillRect(coords[0], coords[1], 10, 10);
-    }
-
-
   }
 
- 
-  // basic idea:
+  // draw horseshoe
+  if (active_horseshoe >= 0) {
+    var coords = world_to_screen_coords(shoe.position, view_matrix);
+    //console.log("after: ", coords);
+    //if (count % 16 == 0) 
+      //console.log("shoe position: ", shoe.position[0], ", ", shoe.position[1], ", ", shoe.position[2]);
+    ctx.fillStyle = "#FF0000";
+    ctx.fillRect(coords[0], coords[1], 10, 10);
+  }
 
-  // if player is still throwing, show wide background
+}
 
-  // animate the horseshoe and character
+function draw_ui() {
+  ui_ctx.clearRect(0, 0, ui_canvas.width, ui_canvas.height);
+  var arc = ui_state.arc; 
+  if (arc.active) {
+    ui_ctx.drawImage(ui_arc, arc.left, arc.top, arc.width, arc.height);
 
-  // if the horseshoe has almost reached the ground, switch to close up view
+    var arc_fill = ui_state.arc.arc_fill;
+    var percentage = arc_fill.fill_amount / arc_fill.fill_max;
+    var fill_height = percentage * arc_fill.height_max;
 
-  // animate horseshoe
+    ui_ctx.fillStyle = "#881122";
+    ui_ctx.fillRect(arc_fill.left, 
+      arc_fill.bottom - fill_height, 
+      arc_fill.width,
+      fill_height);
+  }
 
-
-  // after horseshoe has settled, if its the last shoe of this round, show points for this round,
-  // switch back to wide background
-
-  // if beginning of a round, animate round girl
+  ui_state.dirty = false;
 }
 
 var scale = 1;
@@ -961,6 +979,13 @@ function draw_grid(view_matrix=view, fill=true) {
 }
 
 
+function active_player() {
+  for (var i=0; i<players.length; i++) {
+    if (players[i].active)
+      return players[i];
+  }
+  return null;
+}
 
 function update_new_round(dt) {
   // update round girl's position
@@ -971,18 +996,16 @@ function update_new_round(dt) {
     players[0].active = true;
     reset_player_positions();
     ui.style.display = "block";
+    ui_state.dirty = true;
   }
 }
 
 function update_horizontal_position(dt) {
-  for (var i=0; i<players.length; i++) {
-    var player = players[i];
-    if (!player.active) continue;
-    var character = characters[player.character_id];
-    player.x = input.mouse.x - character.width/2; 
-    var shoe = horseshoes[active_horseshoe];
-    shoe.position = screen_to_world_coords([player.x + character.width-35, canvas.height-100], 0.9);
-  }
+  var player = active_player();
+  var character = characters[player.character_id];
+  player.x = input.mouse.x - character.width/2; 
+  var shoe = horseshoes[active_horseshoe];
+  shoe.position = screen_to_world_coords([player.x + character.width-35, canvas.height-100], 0.9);
 
   if (input.mouse.button_left.pressed) {
     turn_state = game_states.ANGLE_SELECT;
@@ -1004,31 +1027,23 @@ function update_angle_select(dt) {
     vec3.set(velocity, -0.25, 6, -8.2);
 
     turn_state = game_states.THROWING;
-    ui_reset();
     return;
   }
 
   if (input.mouse.wheel_delta == 0) return;
 
-  var fill_amount = ui_state.arc_fill.fill_amount;
-  var fill_max = ui_state.arc_fill.fill_max;
+  var fill_amount = ui_state.arc.arc_fill.fill_amount;
+  var fill_max = ui_state.arc.arc_fill.fill_max;
 
-  fill_amount += input.mouse.wheel_delta;
   // scroll towards body (for my setup, need to handle the opposite configuration as well)
+  fill_amount += input.mouse.wheel_delta;
   fill_amount = Math.min(Math.max(fill_amount, 0), fill_max);
 
-  var percentage = fill_amount / fill_max;
-
-  var fill_height = percentage * ui_state.arc_fill.height_max;
-
-  ui_ctx.fillStyle = "#881122";
-  ui_ctx.fillRect(ui_state.arc_fill.left, 
-    ui_state.arc_fill.bottom - fill_height, 
-    ui_state.arc_fill.width,
-    fill_height);
-
   // update fill amount in ui_state
-  ui_state.arc_fill.fill_amount = fill_amount;
+  ui_state.arc.arc_fill.fill_amount = fill_amount;
+
+  ui_state.dirty = true;
+
 }
 
 
@@ -1098,6 +1113,32 @@ function update_throwing(dt) {
 
   // commit position change
   vec3.copy(shoe.position, new_position);
+
+  
+  var switch_to_closeup_height = 1;
+  if (!closeup && shoe.position[1] <= switch_to_closeup_height && shoe.velocity[1] <= 0) {
+    closeup = true;
+    ui_state.arc.active = false;
+    ui_state.dirty = true;
+  }
+
+  if (Math.abs(shoe.velocity[0]) < 0.001 &&
+      Math.abs(shoe.velocity[1]) < 0.001 &&
+      Math.abs(shoe.velocity[2]) < 0.001)
+  {
+    ui_arc_reset();
+    closeup = false;
+    ui_state.arc.active = true;
+    ui_state.dirty = true;
+
+    var player = active_player();
+    var next_player_id = player.id == 0 ? 1 : 0;
+    players[next_player_id].active = true;
+    player.active = false;
+    reset_player_positions();
+
+    turn_state = game_states.HORIZONTAL_POSITION;
+  }
 }
 
 
