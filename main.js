@@ -13,7 +13,8 @@ var game_states = {
   "NEW_ROUND": 3,
   "HORIZONTAL_POSITION": 4,
   "ANGLE_SELECT": 5,
-  "THROWING": 6
+  "THROWING": 6,
+  "SCORING": 7
 }
 
 var gravity = -9;
@@ -51,10 +52,34 @@ var ui_state = {
       "fill_max": 0, 
       "fill_amount": 0
     }
+  },
+  "mini_view": {
+    "active": true,
+    "width": 0,
+    "height": 0,
+    "left": 0,
+    "top": 0,
+  },
+  "scoreboard": {
+    "active": true,
+    "width": 0,
+    "height": 0,
+    "left": 0,
+    "top": 0,
+  },
+  "end_of_round_score": {
+    "active": true,
+    "width": 0,
+    "height": 0,
+    "left": 0,
+    "top": 0,
   }
 }
 
 var closeup = false;
+var scoring_delay = 4; // seconds
+var scoring_timer = scoring_delay;
+var round_counter = 1;
 
 // order must match order of character_select.images
 // joe, al, sid, lefty
@@ -219,12 +244,13 @@ function init() {
     button_y += button_height + button_padding;
   }
 
-  ui_reset();
+  init_ui();
 
   init_entities();
 
   init_character_select();
 
+  round_counter = 1;
   reset_round_girl();
 
   reset_horseshoes();
@@ -282,6 +308,10 @@ function handle_mouseup(e) {
 }
 
 function handle_keydown(e) {
+  // allow browser refresh
+  if (e.key == 'r' && (e.metaKey || e.ctrlKey))
+    return;
+
   e.preventDefault();
 
   var key = null;
@@ -630,11 +660,11 @@ function character_select_update(dt) {
 // main game code
 // 
 
-function ui_reset() {
-  var arc = ui_state.arc;
-  var arc_fill = ui_state.arc.arc_fill;
+function init_ui() {
+  var { arc, mini_view, scoreboard, end_of_round_score } = ui_state;
 
-  console.log(arc);
+  // arc
+  var arc_fill = ui_state.arc.arc_fill;
   arc.width = 0.15 * ui_canvas.width;
   arc.height = 0.63 * ui_canvas.height;
   arc.left = ui_canvas.width - arc.width;
@@ -646,6 +676,24 @@ function ui_reset() {
   arc_fill.bottom = arc.top + (0.93 * arc.height);
   arc_fill.fill_max = 5000; // arbitrary 
   arc_fill.fill_amount = 0;
+
+  // mini_view
+  mini_view.width = 0.25 * ui_canvas.width;
+  mini_view.height = 0.25 * ui_canvas.height;
+  mini_view.left = ui_canvas.width - mini_view.width;
+  mini_view.top = 0;
+
+  // scoreboard
+  scoreboard.width = 0.25 * ui_canvas.width;
+  scoreboard.height = 0.25 * ui_canvas.height;
+  scoreboard.left = 0;
+  scoreboard.top = 0;
+
+  // end_of_round_score
+  end_of_round_score.width = 0.47 * ui_canvas.width;
+  end_of_round_score.height = 0.17 * ui_canvas.height;
+  end_of_round_score.left = 0.5*ui_canvas.width - 0.5*end_of_round_score.width;
+  end_of_round_score.top = ui_canvas.height - 0.1*ui_canvas.height - end_of_round_score.height;
 
   ui_state.dirty = false;
 }
@@ -715,11 +763,11 @@ function reset_round_girl() {
 
 function reset_horseshoes() {
   for (var i=0; i<horseshoes.length; i++) {
-    //vec3.zero(horseshoes[i].position);
     vec3.set(horseshoes[i].position, 0,0.3,0);
     vec3.zero(horseshoes[i].velocity);
     vec3.zero(horseshoes[i].rotation);
   }
+  active_horseshoe = 0;
 }
 
 function reset_player_positions() {
@@ -781,10 +829,6 @@ function debug_move_camera(dt) {
     mat4.rotateX(view, view, 0.4*dt);
   else if (input.key.e.is_down)
     mat4.rotateX(view, view, -0.4*dt);
-
-
-
-
 }
 
 var count = 0;
@@ -810,6 +854,9 @@ function update(dt) {
         break;
     case game_states.THROWING:
         update_throwing(dt);
+        break;
+    case game_states.SCORING:
+        update_scoring(dt);
         break;
     default:
         console.log('Invalid state in update: ', turn_state);
@@ -896,9 +943,11 @@ function draw() {
 
 function draw_ui() {
   ui_ctx.clearRect(0, 0, ui_canvas.width, ui_canvas.height);
-  var arc = ui_state.arc; 
+
+  var { arc, mini_view, scoreboard, end_of_round_score } = ui_state;
+
   if (arc.active) {
-    ui_ctx.drawImage(ui_arc, arc.left, arc.top, arc.width, arc.height);
+    ui_ctx.drawImage(img_arc, arc.left, arc.top, arc.width, arc.height);
 
     var arc_fill = ui_state.arc.arc_fill;
     var percentage = arc_fill.fill_amount / arc_fill.fill_max;
@@ -910,6 +959,53 @@ function draw_ui() {
       arc_fill.width,
       fill_height);
   }
+
+  if (mini_view.active) {
+    ui_ctx.drawImage(img_mini_view, 
+      mini_view.left, mini_view.top, 
+      mini_view.width, mini_view.height);
+
+    for (var i=0; i<active_horseshoe; i++) {
+      // draw horseshoe
+    }
+  }
+
+  if (scoreboard.active) {
+    ui_ctx.drawImage(img_scoreboard, 
+      scoreboard.left, scoreboard.top, 
+      scoreboard.width, scoreboard.height);
+
+    // TODO(shaw): use single spritesheet for all images
+
+    //var score1 = score_numbers[players[0].score];
+    //ui_ctx.drawImage(img_spritesheet,
+      //score1.sheet_x, score1.sheet_y,
+      //score1.width, score1.height,
+      //score1.x, score1.y,
+      //score1.width, score1.height);
+
+    //var score2 = score_numbers[players[1].score];
+    //ui_ctx.drawImage(img_spritesheet,
+      //score2.sheet_x, score2.sheet_y,
+      //score2.width, score2.height,
+      //score2.x, score2.y,
+      //score2.width, score2.height);
+  }
+
+  if (end_of_round_score.active) {
+    ui_ctx.drawImage(img_end_of_round_score,
+      end_of_round_score.left, end_of_round_score.top, 
+      end_of_round_score.width, end_of_round_score.height);
+
+    // TODO
+    //var score1 = ;
+    //ui_ctx.drawImage(img_spritesheet,
+      //score.sheet_x, score.sheet_y,
+      //score.width, score.height,
+      //score.x, score.y,
+      //score.width, score.height);
+  }
+
 
   ui_state.dirty = false;
 }
@@ -932,9 +1028,6 @@ for (var i=0; i<grid_lines.length; i++) {
   vec3.mul(grid_lines[i][0], grid_lines[i][0], [scale, 1, scale]);
   vec3.mul(grid_lines[i][1], grid_lines[i][1], [scale, 1, scale]);
 }
-
-
-console.log(grid_lines);
 
 function draw_grid(view_matrix=view, fill=true) {
   var line, point, a, b, c, d;
@@ -992,11 +1085,10 @@ function update_new_round(dt) {
   round_girl.x += round_girl.speed * dt;
 
   if (round_girl.x > canvas.width) {
-    turn_state = game_states.HORIZONTAL_POSITION;
     players[0].active = true;
-    reset_player_positions();
-    ui.style.display = "block";
-    ui_state.dirty = true;
+    players[1].active = false;
+    round_girl.x = -round_girl.width;
+    turn_state = game_states.HORIZONTAL_POSITION;
   }
 }
 
@@ -1113,7 +1205,6 @@ function update_throwing(dt) {
 
   // commit position change
   vec3.copy(shoe.position, new_position);
-
   
   var switch_to_closeup_height = 1;
   if (!closeup && shoe.position[1] <= switch_to_closeup_height && shoe.velocity[1] <= 0) {
@@ -1122,22 +1213,69 @@ function update_throwing(dt) {
     ui_state.dirty = true;
   }
 
-  if (Math.abs(shoe.velocity[0]) < 0.001 &&
-      Math.abs(shoe.velocity[1]) < 0.001 &&
-      Math.abs(shoe.velocity[2]) < 0.001)
+  // transition to next game state: horizontal position
+  if (Math.abs(shoe.velocity[0]) < 0.01 &&
+      Math.abs(shoe.velocity[1]) < 0.01 &&
+      Math.abs(shoe.velocity[2]) < 0.01)
   {
+    scoring_timer = scoring_delay;
+    turn_state = game_states.SCORING;
+  }
+}
+
+
+
+function update_scoring(dt) {
+  scoring_timer -= dt;
+
+  // after 1 second
+  if (scoring_timer <= scoring_delay-1 && !ui_state.arc.active) {
+    ui_state.mini_view.active = true;
+    ui_state.dirty = true;
+  }
+
+  // after 2 seconds
+  if (scoring_timer <= scoring_delay-2) {
+    if (active_horseshoe != horseshoes.length-1) { // not last horseshoe
+      ui_arc_reset();
+      closeup = false;
+      ui_state.arc.active = true;
+      ui_state.dirty = true;
+
+      var player = active_player();
+      var next_player_id = player.id == 0 ? 1 : 0;
+      players[next_player_id].active = true;
+      player.active = false;
+      reset_player_positions();
+      turn_state = game_states.HORIZONTAL_POSITION;
+      return;
+    }
+
+    if (!ui_state.end_of_round_score.active) {
+      // TODO: calculate score
+
+      // TODO: update score in ui
+
+      ui_state.end_of_round_score.active = true;
+      ui_state.scoreboard.active = true;
+      ui_state.dirty = true;
+    }
+  }
+
+  if (scoring_timer <= 0) {
+    ui_state.end_of_round_score.active = false;
+    ui_state.mini_view.active = false;
     ui_arc_reset();
     closeup = false;
     ui_state.arc.active = true;
     ui_state.dirty = true;
-
-    var player = active_player();
-    var next_player_id = player.id == 0 ? 1 : 0;
-    players[next_player_id].active = true;
-    player.active = false;
+    players[1].active = false;
+    players[0].active = true;
     reset_player_positions();
+    reset_horseshoes();
 
-    turn_state = game_states.HORIZONTAL_POSITION;
+    // TODO: increment round counter
+    turn_state = game_states.NEW_ROUND;
   }
 }
 
