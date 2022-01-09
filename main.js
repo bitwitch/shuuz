@@ -213,15 +213,18 @@ function init() {
   set_projection_matrix(projection, aspect, fov_degrees, near, far);
 
   // set view matrix
-  var s = 2.2;
-  mat4.fromRotation(view, 0.41, [1,0,0]);
-  mat4.translate(view, view, [0, -3, -2]);
-  mat4.scale(view, view, [s,s,s*.9]);
+  //var s = 2.2;
+  mat4.fromRotation(view, 0.38, [1,0,0]);
+  mat4.translate(view, view, [0, -1.4, -0.92]);
+  //mat4.scale(view, view, [s,s,s*.9]);
+
+  //mat4.fromRotation(view, Math.PI/2, [1,0,0]);
+  //mat4.translate(view, view, [0, -5, 13]);
 
   // set closeup view matrix
   mat4.fromRotation(closeup_view, 1.2, [1,0,0]);
-  mat4.translate(closeup_view, closeup_view, [0, -2.5, 24.3]);
-  mat4.scale(closeup_view, closeup_view, [s,s,s*.9]);
+  mat4.translate(closeup_view, closeup_view, [0, -1.2, 12.25]);
+  //mat4.scale(closeup_view, closeup_view, [s,s,s*.9]);
 
   // TODO(shaw): This doesn't seem right. The far stake is at 13 meters 
   // the camera z being set to 13 should put it directly over the stake, but it takes double to 
@@ -229,8 +232,8 @@ function init() {
 
   // set overhead view matrix
   mat4.fromRotation(overhead_view, Math.PI/2, [1,0,0]);
-  mat4.translate(overhead_view, overhead_view, [0, -4.5, 26]);
-  mat4.scale(overhead_view, overhead_view, [s,s,s*.9]);
+  mat4.translate(overhead_view, overhead_view, [0, -1.2, 13]);
+  //mat4.scale(overhead_view, overhead_view, [s,s,s*.9]);
 
   // set inverse of projection * view
   mat4.mul(inverse_projection_view, projection, view);
@@ -700,6 +703,7 @@ function init_ui() {
   scoreboard.height = 0.297 * ui_canvas.height;
   scoreboard.left = 0;
   scoreboard.top = 0;
+  scoreboard.active = true;
 
   // end_of_round_score
   end_of_round_score.width = 0.47 * ui_canvas.width;
@@ -707,7 +711,7 @@ function init_ui() {
   end_of_round_score.left = 0.5*ui_canvas.width - 0.5*end_of_round_score.width;
   end_of_round_score.top = ui_canvas.height - 0.1*ui_canvas.height - end_of_round_score.height;
 
-  ui_state.dirty = false;
+  ui_state.dirty = true;
 }
 
 
@@ -760,7 +764,7 @@ function init_entities() {
   // init players
   for (var i=0; i<players.length; i++) {
     players[i].shoes_left = 2;
-    players[i].y = canvas.height - 555 - 25;
+    players[i].y = canvas.height - 470;
   }
 
 }
@@ -786,16 +790,9 @@ function reset_player_positions() {
   for (var i=0; i<players.length; i++) {
     var p = players[i];
     var c = characters[p.character_id];
-    if (p.active) {
-      p.x = 0.25 * canvas.width;
-      p.y = canvas.height - c.height;
-    } else {
-      // sitting down position
-      p.x = 0;
-      p.y = 0;
-    }
+    p.x = 0.25 * canvas.width;
+    p.y = canvas.height - c.height;
   }
-
 }
 
 function resize_canvas() {
@@ -943,7 +940,7 @@ function draw() {
       var character = characters[player.character_id];
 
       if (player.active) {
-        //ctx.drawImage(character.image, player.x, player.y, character.width, character.height);
+        ctx.drawImage(character.image, player.x, player.y, character.width, character.height);
       } else {
         // draw player sitting
       }
@@ -1016,8 +1013,6 @@ function draw_ui() {
 
       var x = mini_view.left + off_x;
       var y = mini_view.top + off_y;
-
-      console.log({ off_x, off_y, x, y })
 
       ui_ctx.fillStyle = i < 2 ? "#FF0000" : "#00FF00";
       ui_ctx.fillRect(x, y, 5, 5);
@@ -1154,7 +1149,7 @@ function update_horizontal_position(dt) {
   var character = characters[player.character_id];
   player.x = input.mouse.x - character.width/2; 
   var shoe = horseshoes[active_horseshoe];
-  shoe.position = screen_to_world_coords([player.x + character.width-35, canvas.height-100], 0.9);
+  shoe.position = screen_to_world_coords([player.x + character.width-35, canvas.height-100], 0.875);
 
   if (input.mouse.button_left.pressed) {
     turn_state = game_states.ANGLE_SELECT;
@@ -1173,7 +1168,7 @@ function update_angle_select(dt) {
 
     // TODO(shaw): calculate throwing velocity based on power and angle
     var velocity = horseshoes[active_horseshoe].velocity;
-    vec3.set(velocity, -0.25, 6, -8.7);
+    vec3.set(velocity, -0.25, 7, -8);
 
     turn_state = game_states.THROWING;
     return;
@@ -1337,8 +1332,8 @@ function update_scoring(dt) {
     closeup = false;
     ui_state.arc.active = true;
     ui_state.dirty = true;
+    players[0].active = false;
     players[1].active = false;
-    players[0].active = true;
     reset_player_positions();
     reset_horseshoes();
 
