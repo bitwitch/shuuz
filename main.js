@@ -106,7 +106,7 @@ var horseshoes = [
   { position: vec3.create(), velocity: vec3.create(), rotation: vec3.create() }
 ];
 
-var stake = { x: 0 , y: 0, z: -13 };
+var stake = vec3.fromValues(0, 0, -13);
 
 var round_girl = {
   x: 0,
@@ -999,12 +999,9 @@ function draw_ui() {
 
     for (var i=0; i <= active_horseshoe; i++) {
       // draw horseshoe
-      var dist_x = horseshoes[i].position[0] - stake.x;
-      var dist_z = horseshoes[i].position[2] - stake.z;
-      var dist = Math.sqrt(dist_x*dist_x + dist_z*dist_z);
+      var dist = vec3.distance(horseshoes[i].position, stake);
 
       if (dist > 1) continue;
-
 
       var ndc_coords = world_to_ndc(horseshoes[i].position, overhead_view);
       var off_x = (ndc_coords[0] + 1) * 0.5 * mini_view.width;
@@ -1162,13 +1159,9 @@ function update_angle_select(dt) {
 
   // begin throw
   if (input.mouse.wheel_delta < 0) {
-    //var position = horseshoes[active_horseshoe].position;
-    //var p = get_active_player();
-    //vec3.set(position, p.x, position[1], position[2]);
-
     // TODO(shaw): calculate throwing velocity based on power and angle
     var velocity = horseshoes[active_horseshoe].velocity;
-    vec3.set(velocity, -0.25, 7, -8);
+    vec3.set(velocity, -0.25, 7, -7.9);
 
     turn_state = game_states.THROWING;
     return;
@@ -1179,7 +1172,7 @@ function update_angle_select(dt) {
   var fill_amount = ui_state.arc.arc_fill.fill_amount;
   var fill_max = ui_state.arc.arc_fill.fill_max;
 
-  // scroll towards body (for my setup, need to handle the opposite configuration as well)
+  // scroll towards body (for my setup. need to handle the opposite configuration as well)
   fill_amount += input.mouse.wheel_delta;
   fill_amount = Math.min(Math.max(fill_amount, 0), fill_max);
 
@@ -1315,9 +1308,37 @@ function update_scoring(dt) {
     }
 
     if (!ui_state.end_of_round_score.active) {
-      // TODO: calculate score
+      var player1_points = 0;
+      var player2_points = 0;
 
-      // TODO: update score in ui
+      // TODO(shaw) ringers!
+
+      var min_dist = 9999;
+      var winner = -1;
+      for (var i=0; i<horseshoes.length; i++) {
+        var dist = vec3.distance(horseshoes[i].position, stake);
+        if (dist < 0.17) {
+          if (i < 2) 
+            player1_points++;
+          else
+            player2_points++;
+
+          if (dist < min_dist) {
+            min_dist = dist;
+            winner = i < 2 ? 0 : 1;
+          }
+        }
+      }
+
+      if (winner == 0)
+        player2_points = 0;
+      else if (winner == 1)
+        player1_points = 0;
+
+      players[0].score += player1_points;
+      players[1].score += player2_points;
+
+      console.log({ player1_points, player2_points });
 
       ui_state.end_of_round_score.active = true;
       ui_state.scoreboard.active = true;
