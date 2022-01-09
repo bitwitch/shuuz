@@ -209,13 +209,13 @@ function init() {
   var aspect = canvas.width / canvas.height;
   var near = 0.1;
   var far = 100;
-  var fov_degrees = 70; // fov y
+  var fov_degrees = 65; // fov y
   set_projection_matrix(projection, aspect, fov_degrees, near, far);
 
   // set view matrix
   //var s = 2.2;
   mat4.fromRotation(view, 0.38, [1,0,0]);
-  mat4.translate(view, view, [0, -1.4, -0.92]);
+  mat4.translate(view, view, [0, -1.4, -1.05]);
   //mat4.scale(view, view, [s,s,s*.9]);
 
   //mat4.fromRotation(view, Math.PI/2, [1,0,0]);
@@ -223,7 +223,7 @@ function init() {
 
   // set closeup view matrix
   mat4.fromRotation(closeup_view, 1.2, [1,0,0]);
-  mat4.translate(closeup_view, closeup_view, [0, -1.2, 12.25]);
+  mat4.translate(closeup_view, closeup_view, [0, -1.4, 12.25]);
   //mat4.scale(closeup_view, closeup_view, [s,s,s*.9]);
 
   // TODO(shaw): This doesn't seem right. The far stake is at 13 meters 
