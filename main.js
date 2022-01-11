@@ -111,10 +111,15 @@ var stake = vec3.fromValues(0, 0, -13);
 var round_girl = {
   x: 0,
   y: 0,
+  sprite_width: 0,
+  sprite_height: 0,
   width: 0,
   height: 0,
   speed: 0,
-  image: round_girl_sprite
+  image: round_girl_spritesheet,
+  sheet_off_x: 0,
+  sheet_off_y: 0,
+  animation: null
 };
 
 var input = {
@@ -266,7 +271,6 @@ function init() {
   init_character_select();
 
   round_counter = 1;
-  reset_round_girl();
 
   reset_horseshoes();
 
@@ -760,6 +764,17 @@ function init_entities() {
     image: character_lefty
   });
 
+  // init round_girl
+  round_girl.sprite_width = 100;
+  round_girl.sprite_height = 256;
+  round_girl.width = round_girl.sprite_width * 2.2;
+  round_girl.height = round_girl.sprite_height * 2.2;
+  round_girl.x = 0;
+  round_girl.y = canvas.height - round_girl.height - 25;
+  round_girl.speed = 225;
+  round_girl.animation = new Animation();
+  round_girl.animation.add_state("WALKING", 0, 4, 5);
+  round_girl.animation.current_state = "WALKING";
 
   // init players
   for (var i=0; i<players.length; i++) {
@@ -767,14 +782,6 @@ function init_entities() {
     players[i].y = canvas.height - 470;
   }
 
-}
-
-function reset_round_girl() {
-  round_girl.width = 200;
-  round_girl.height = 555;
-  round_girl.x = 0;
-  round_girl.y = canvas.height - round_girl.height - 25;
-  round_girl.speed = 478;
 }
 
 function reset_horseshoes() {
@@ -866,7 +873,7 @@ var count = 0;
 function update(dt) {
   if (input.key.escape.pressed) {
     quit = true;
-    return
+    return;
   }
 
   count++;
@@ -908,6 +915,23 @@ function update(dt) {
 
 }
 
+
+function Animation(animation_states) {
+  if (animation_states) {
+    this.states = Object.assign({}, animation_states);
+  } else {
+    this.states = {};
+  }
+  this.current_state = "IDLE";
+  this.timer = 0;
+  this.current_frame = 0;
+}
+
+Animation.prototype.add_state = function(name, start_index, stop_index, fps) {
+  this.states[name] = { start_index, stop_index, fps };
+}
+
+
 function draw() {
   // TODO(shaw): clearRect if backgrounds get moved to a new layer
 
@@ -931,8 +955,24 @@ function draw() {
     draw_grid();
 
     // draw round_girl
-    if (turn_state == game_states.NEW_ROUND)
-      ctx.drawImage(round_girl.image, round_girl.x, round_girl.y, round_girl.width, round_girl.height);
+    if (turn_state == game_states.NEW_ROUND) {
+      //ctx.drawImage(round_girl.image, round_girl.x, round_girl.y, round_girl.width, round_girl.height);
+
+      var animation = round_girl.animation;
+
+      var sheet_off_x = round_girl.sheet_off_x + 
+        (animation.states[animation.current_state].start_index * round_girl.sprite_width);
+
+      var sheet_x = sheet_off_x + (animation.current_frame * round_girl.sprite_width);
+      var sheet_y = round_girl.sheet_off_y;
+
+      ctx.drawImage(round_girl.image, 
+        sheet_x, sheet_y,
+        round_girl.sprite_width, round_girl.sprite_height,
+        round_girl.x, round_girl.y,
+        round_girl.width, round_girl.height);
+
+    }
 
     // draw players
     for (var i=0; i<players.length; i++) {
@@ -1131,13 +1171,24 @@ function update_new_round(dt) {
   // update round girl's position
   round_girl.x += round_girl.speed * dt;
 
+  // animate
+  var animation = round_girl.animation;
+  var animation_state = animation.states[animation.current_state];
+  animation.timer += dt;
+  var frame_index = Math.floor(animation.timer * animation_state.fps) % (1 + animation_state.stop_index - animation_state.start_index);
+  animation.current_frame = animation_state.start_index + frame_index;
+  if (animation.current_frame > animation_state.stop_index)
+    animation.current_frame = animation_state.start_index;
+
   if (round_girl.x > canvas.width) {
-    players[0].active = true;
-    players[1].active = false;
-    round_girl.x = -round_girl.width;
-    ui_state.arc.active = true;
-    ui_state.dirty = true;
-    turn_state = game_states.HORIZONTAL_POSITION;
+    round_girl.x = 0;
+    //animation.timer = 0;
+    //players[0].active = true;
+    //players[1].active = false;
+    //round_girl.x = -round_girl.width;
+    //ui_state.arc.active = true;
+    //ui_state.dirty = true;
+    //turn_state = game_states.HORIZONTAL_POSITION;
   }
 }
 
