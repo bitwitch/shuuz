@@ -67,6 +67,22 @@ var ui_state = {
     "height": 0,
     "left": 0,
     "top": 0,
+    "sheet_width": 0,
+    "sheet_height": 0,
+    "number_width": 0,
+    "number_height": 0,
+    "score1": {
+      "ones_x": 0,
+      "ones_y": 0,
+      "tens_x": 0,
+      "tens_y": 0,
+    },
+    "score2": {
+      "ones_x": 0,
+      "ones_y": 0,
+      "tens_x": 0,
+      "tens_y": 0,
+    }
   },
   "end_of_round_score": {
     "active": false,
@@ -74,6 +90,12 @@ var ui_state = {
     "height": 0,
     "left": 0,
     "top": 0,
+  },
+  "numbers": {
+    "sheet_x": 0,
+    "sheet_y": 0,
+    "number_width": 0,
+    "number_height": 0
   }
 }
 
@@ -680,7 +702,7 @@ function character_select_update(dt) {
 // 
 
 function init_ui() {
-  var { arc, mini_view, scoreboard, end_of_round_score } = ui_state;
+  var { arc, mini_view, scoreboard, end_of_round_score, numbers } = ui_state;
 
   // arc
   var arc_fill = ui_state.arc.arc_fill;
@@ -702,11 +724,28 @@ function init_ui() {
   mini_view.left = ui_canvas.width - mini_view.width;
   mini_view.top = 0;
 
+  // numbers
+  numbers.number_width = 14;
+  numbers.number_height = 16;
+
   // scoreboard
+  scoreboard.sheet_width = 80;
+  scoreboard.sheet_height = 75;
   scoreboard.width = 0.213 * ui_canvas.width;
   scoreboard.height = 0.297 * ui_canvas.height;
   scoreboard.left = 0;
   scoreboard.top = 0;
+  scoreboard.number_width  = 0.20 * scoreboard.width;
+  scoreboard.number_height = 0.22 * scoreboard.height;
+  scoreboard.score1.ones_x = 0.49 * scoreboard.width;
+  scoreboard.score1.ones_y = 0.37 * scoreboard.height;
+  scoreboard.score1.tens_x = 0.225 * scoreboard.width;
+  scoreboard.score1.tens_y = 0.37 * scoreboard.height;
+  scoreboard.score2.ones_x = 0.49 * scoreboard.width;
+  scoreboard.score2.ones_y = 0.69 * scoreboard.height;
+  scoreboard.score2.tens_x = 0.225 * scoreboard.width;
+  scoreboard.score2.tens_y = 0.69 * scoreboard.height;
+
   scoreboard.active = true;
 
   // end_of_round_score
@@ -1016,7 +1055,7 @@ function draw() {
 function draw_ui() {
   ui_ctx.clearRect(0, 0, ui_canvas.width, ui_canvas.height);
 
-  var { arc, mini_view, scoreboard, end_of_round_score } = ui_state;
+  var { arc, mini_view, scoreboard, end_of_round_score, numbers } = ui_state;
 
   if (arc.active) {
     ui_ctx.drawImage(img_arc, arc.left, arc.top, arc.width, arc.height);
@@ -1064,19 +1103,52 @@ function draw_ui() {
 
     // TODO(shaw): use single spritesheet for all images
 
-    //var score1 = score_numbers[players[0].score];
-    //ui_ctx.drawImage(img_spritesheet,
-      //score1.sheet_x, score1.sheet_y,
-      //score1.width, score1.height,
-      //score1.x, score1.y,
-      //score1.width, score1.height);
+    // player 1 score
+    var score1 = players[0].score;
 
-    //var score2 = score_numbers[players[1].score];
-    //ui_ctx.drawImage(img_spritesheet,
-      //score2.sheet_x, score2.sheet_y,
-      //score2.width, score2.height,
-      //score2.x, score2.y,
-      //score2.width, score2.height);
+    var tens = Math.floor(score1 / 10);
+    var ones = score1 % 10;
+    var sheet_y = numbers.sheet_y;
+    var sheet_x;
+
+    if (tens > 0) {
+      sheet_x = numbers.sheet_x + tens * numbers.number_width;
+      ui_ctx.drawImage(img_numbers,
+        sheet_x, sheet_y,
+        numbers.number_width, numbers.number_height,
+        scoreboard.score1.tens_x, scoreboard.score1.tens_y,
+        scoreboard.number_width, scoreboard.number_height);
+    } 
+    
+    sheet_x = numbers.sheet_x + ones * numbers.number_width;
+    ui_ctx.drawImage(img_numbers,
+      sheet_x, sheet_y,
+      numbers.number_width, numbers.number_height,
+      scoreboard.score1.ones_x, scoreboard.score1.ones_y,
+      scoreboard.number_width, scoreboard.number_height);
+
+    // player 2 score
+    var score2 = players[1].score;
+
+    tens = Math.floor(score2 / 10);
+    ones = score2 % 10;
+    sheet_x = numbers.sheet_x + ones * numbers.number_width;
+
+    if (tens > 0) {
+      sheet_x = numbers.sheet_x + tens * numbers.number_width;
+      ui_ctx.drawImage(img_numbers,
+        sheet_x, sheet_y,
+        numbers.number_width, numbers.number_height,
+        scoreboard.score2.tens_x, scoreboard.score2.tens_y,
+        scoreboard.number_width, scoreboard.number_height);
+    } 
+    
+    sheet_x = numbers.sheet_x + ones * numbers.number_width;
+    ui_ctx.drawImage(img_numbers,
+      sheet_x, sheet_y,
+      numbers.number_width, numbers.number_height,
+      scoreboard.score2.ones_x, scoreboard.score2.ones_y,
+      scoreboard.number_width, scoreboard.number_height);
   }
 
   if (end_of_round_score.active) {
@@ -1181,14 +1253,13 @@ function update_new_round(dt) {
     animation.current_frame = animation_state.start_index;
 
   if (round_girl.x > canvas.width) {
-    round_girl.x = 0;
-    //animation.timer = 0;
-    //players[0].active = true;
-    //players[1].active = false;
-    //round_girl.x = -round_girl.width;
-    //ui_state.arc.active = true;
-    //ui_state.dirty = true;
-    //turn_state = game_states.HORIZONTAL_POSITION;
+    animation.timer = 0;
+    players[0].active = true;
+    players[1].active = false;
+    round_girl.x = -round_girl.width;
+    ui_state.arc.active = true;
+    ui_state.dirty = true;
+    turn_state = game_states.HORIZONTAL_POSITION;
   }
 }
 
