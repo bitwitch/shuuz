@@ -1,5 +1,10 @@
 window.onload = function () {
 
+var X = 0;
+var Y = 1;
+var Z = 2;
+var W = 3;
+
 var { mat4, vec2, vec3, vec4 } = glMatrix;
 
 // globals
@@ -129,7 +134,10 @@ var horseshoes = [
   { position: vec3.create(), velocity: vec3.create(), rotation: vec3.create(), width: 0, height: 0 }
 ];
 
-var stake = vec3.fromValues(0, 0, -13);
+var stake = {
+  position: vec3.fromValues(0, 0, -13),
+  height: 0.5
+}
 
 var round_girl = {
   x: 0,
@@ -828,8 +836,8 @@ function init_entities() {
     vec3.set(horseshoes[i].position, 0,0.3,0);
     vec3.zero(horseshoes[i].velocity);
     vec3.set(horseshoes[i].rotation, 0,0,0);
-    horseshoes[i].width = 0.1;
-    horseshoes[i].height = 0.1;
+    horseshoes[i].width = 0.15;
+    horseshoes[i].height = 0.15;
   }
 }
 
@@ -1080,9 +1088,6 @@ function draw() {
     var fr_coord = world_to_screen_coords(fr, view_matrix);
     var bl_coord = world_to_screen_coords(bl, view_matrix);
     var br_coord = world_to_screen_coords(br, view_matrix);
-
-    //if (count % 16 == 0) 
-      //console.log("shoe position: ", shoe.position[0], ", ", shoe.position[1], ", ", shoe.position[2]);
     
     //ctx.fillStyle = i < 2 ? "#FF0000" : "#00FF00";
     //ctx.fillStyle = "#FF0000";
@@ -1094,15 +1099,15 @@ function draw() {
 
     ctx.beginPath();
     ctx.strokeStyle = "#000000";
-    ctx.moveTo(fl_coord[0], fl_coord[1]);
-    ctx.lineTo(fr_coord[0], fr_coord[1]);
+    ctx.moveTo(fl_coord[X], fl_coord[Y]);
+    ctx.lineTo(fr_coord[X], fr_coord[Y]);
     ctx.stroke();
     ctx.beginPath();
     ctx.strokeStyle = i < 2 ? "#FF0000" : "#00FF00";
-    ctx.moveTo(fr_coord[0], fr_coord[1]);
-    ctx.lineTo(br_coord[0], br_coord[1]);
-    ctx.lineTo(bl_coord[0], bl_coord[1]);
-    ctx.lineTo(fl_coord[0], fl_coord[1]);
+    ctx.moveTo(fr_coord[X], fr_coord[Y]);
+    ctx.lineTo(br_coord[X], br_coord[Y]);
+    ctx.lineTo(bl_coord[X], bl_coord[Y]);
+    ctx.lineTo(fl_coord[X], fl_coord[Y]);
     ctx.stroke();
 
   }
@@ -1135,7 +1140,7 @@ function draw_ui() {
 
     for (var i=0; i <= active_horseshoe; i++) {
       // draw horseshoe
-      var dist = vec3.distance(horseshoes[i].position, stake);
+      var dist = vec3.distance(horseshoes[i].position, stake.position);
 
       if (dist > 1) continue;
 
@@ -1364,15 +1369,15 @@ function update_angle_select(dt) {
 
 function world_to_ndc(v3, view_matrix=view) {
   // world to camera space coords
-  var coords = vec4.fromValues(v3[0], v3[1], v3[2], 1);
+  var coords = vec4.fromValues(v3[X], v3[Y], v3[Z], 1);
   vec4.transformMat4(coords, coords, view_matrix);
 
   // perspective projection
   vec4.transformMat4(coords, coords, projection);
 
   // homogenous to cartesian coords, in NDC space
-  if (coords[3] != 1) {
-    vec4.div(coords, coords, [coords[3], coords[3], coords[3], 1]);
+  if (coords[W] != 1) {
+    vec4.div(coords, coords, [coords[W], coords[W], coords[W], 1]);
   }
 
   return coords;
@@ -1382,9 +1387,9 @@ function world_to_screen_coords(v3, view_matrix=view) {
   var coords = world_to_ndc(v3, view_matrix);
 
   // temp hack to notify outside clip
-  if (coords[0] < -1 || coords[0] > 1 ||
-      coords[1] < -1 || coords[1] > 1 ||
-      coords[2] < -1 || coords[2] > 1)
+  if (coords[X] < -1 || coords[X] > 1 ||
+      coords[Y] < -1 || coords[Y] > 1 ||
+      coords[Z] < -1 || coords[Z] > 1)
   {
     return [-1,-1];
   }
@@ -1392,50 +1397,86 @@ function world_to_screen_coords(v3, view_matrix=view) {
   var canvas_coords = vec2.create();
 
   // viewport transform
-  canvas_coords[0] = (coords[0] + 1) * 0.5 * canvas.width;
-  canvas_coords[1] = (1 - (coords[1] + 1) * 0.5) * canvas.height;
+  canvas_coords[X] = (coords[X] + 1) * 0.5 * canvas.width;
+  canvas_coords[Y] = (1 - (coords[Y] + 1) * 0.5) * canvas.height;
 
   return canvas_coords;
 }
 
 
 function screen_to_world_coords(v2, z=-1) {
-  var world_coords = vec4.fromValues(v2[0], v2[1], z, 1);
+  var world_coords = vec4.fromValues(v2[X], v2[Y], z, 1);
 
   // screen to NDC coords
-  world_coords[0] = (world_coords[0] * 2 / canvas.width) - 1;
-  world_coords[1] = (2 * (1 - (world_coords[1] / canvas.height))) - 1;
+  world_coords[X] = (world_coords[X] * 2 / canvas.width) - 1;
+  world_coords[Y] = (2 * (1 - (world_coords[Y] / canvas.height))) - 1;
 
   // perspective
   vec4.transformMat4(world_coords, world_coords, inverse_projection_view);
-  vec4.div(world_coords, world_coords, [world_coords[3], world_coords[3], world_coords[3], 1]);
+  vec4.div(world_coords, world_coords, [world_coords[W], world_coords[W], world_coords[W], 1]);
 
-  return vec3.fromValues(world_coords[0], world_coords[1], world_coords[2]);
+  return vec3.fromValues(world_coords[X], world_coords[Y], world_coords[Z]);
+}
+
+
+function is_ringer(stake, shoe) {
+  if (shoe.position[Z] > stake.position[Z] + 2)
+    return false;
+
+  if (shoe.position[Y] >= stake.height)
+    return false;
+
+  if (stake.position[X] < shoe.position[X] - shoe.width/2 ||
+      stake.position[X] > shoe.position[X] + shoe.width/2)
+    return false;
+
+
+  var fl = vec3.fromValues(-shoe.width/2, 0, -shoe.height/2);
+  var br = vec3.fromValues(shoe.width/2, 0, shoe.height/2);
+
+  var rot = mat4.create();
+  mat4.fromRotation(rot, shoe.rotation[0], [1,0,0]);
+
+  vec3.transformMat4(fl, fl, rot);
+  vec3.transformMat4(br, br, rot);
+
+  // translate to shoe position
+  var translate = mat4.create();
+  mat4.fromTranslation(translate, shoe.position);
+  vec3.transformMat4(fl, fl, translate);
+  vec3.transformMat4(br, br, translate);
+
+  if (stake.position[Z] < br[Z] && stake.position[Z] > fl[Z]) {
+    return true;
+  }
+
+  return false;
 }
 
 
 var new_position = vec3.create();
 function update_throwing(dt) {
+  var ground_height = 0;
   var shoe = horseshoes[active_horseshoe];
 
   // update velocity by acceleration
-  vec3.add(shoe.velocity, shoe.velocity, [0, gravity*dt, 0]);
+  if (shoe.position[Y] > ground_height)
+    vec3.add(shoe.velocity, shoe.velocity, [0, gravity*dt, 0]);
   
   // update position by velocity
   vec3.scaleAndAdd(new_position, shoe.position, shoe.velocity, dt);
 
-  // if grounded, set y position to 0
-  var ground_height = 0;
-  if (new_position[1] <= ground_height) {
-    vec3.set(new_position, new_position[0], ground_height, new_position[2]);
-    shoe.velocity[1] = 0;
+  // check if grounded
+  if (new_position[Y] <= ground_height) {
+    vec3.set(new_position, new_position[X], ground_height, new_position[2]);
+    shoe.velocity[Y] = 0;
     vec3.scale(shoe.velocity, shoe.velocity, 0.9);
 
     // TODO(shaw): make shoe lay flat depending on direction
-    if (shoe.rotation[0] >= 0.5*Math.PI && shoe.rotation[0] <= 1.5*Math.PI) {
-      shoe.rotation[0] = Math.PI;      
+    if (shoe.rotation[X] >= 0.5*Math.PI && shoe.rotation[X] <= 1.5*Math.PI) {
+      shoe.rotation[X] = Math.PI;      
     } else {
-      shoe.rotation[0] = 0;
+      shoe.rotation[X] = 0;
     }
 
   } else {
@@ -1445,14 +1486,27 @@ function update_throwing(dt) {
     //
 
     // only rotate when not grounded
-    shoe.rotation[0] = (shoe.rotation[0] + dt) % (2 * Math.PI);
+    var speed = 2;
+    shoe.rotation[X] = (shoe.rotation[X] + speed*dt) % (2 * Math.PI);
+  }
+
+  // TODO(shaw): check for a collision with the stake that is not a ringer
+
+  // check for ringer
+  if (is_ringer(stake, shoe)) {
+    shoe.position[Z] = stake.position[Z];
+    shoe.velocity[Z] = 0;
+    shoe.position[X] = stake.position[X];
+    shoe.velocity[X] = 0;
+    shoe.position[Y] = stake.position[Y];
+    shoe.velocity[Y] = 0;
   }
 
   // commit position change
   vec3.copy(shoe.position, new_position);
   
   var switch_to_closeup_height = 1;
-  if (!closeup && shoe.position[1] <= switch_to_closeup_height && shoe.velocity[1] <= 0) {
+  if (!closeup && shoe.position[Y] <= switch_to_closeup_height && shoe.velocity[Y] <= 0) {
     closeup = true;
     ui_state.arc.active = false;
     ui_state.mini_view.active = false;
@@ -1461,9 +1515,9 @@ function update_throwing(dt) {
   }
 
   // transition to next game state: horizontal position
-  if (Math.abs(shoe.velocity[0]) < 0.01 &&
-      Math.abs(shoe.velocity[1]) < 0.01 &&
-      Math.abs(shoe.velocity[2]) < 0.01)
+  if (Math.abs(shoe.velocity[X]) < 0.01 &&
+      Math.abs(shoe.velocity[Y]) < 0.01 &&
+      Math.abs(shoe.velocity[Z]) < 0.01)
   {
     scoring_timer = scoring_delay;
     turn_state = game_states.SCORING;
@@ -1490,40 +1544,82 @@ function update_scoring(dt) {
       ui_state.scoreboard.active = true;
       ui_state.dirty = true;
 
-      var player = active_player();
-      var next_player_id = player.id == 0 ? 1 : 0;
-      players[next_player_id].active = true;
-      player.active = false;
-      reset_player_positions();
-
       active_horseshoe++;
+
+      var player = active_player();
+      var next_player_id = active_horseshoe < 2 ? 0 : 1;
+      player.active = false;
+      players[next_player_id].active = true;
+      reset_player_positions();
 
       turn_state = game_states.HORIZONTAL_POSITION;
       return;
     }
 
     if (!ui_state.end_of_round_score.active) {
+      var player1_ringers = 0;
+      var player2_ringers = 0;
       var player1_points = 0;
       var player2_points = 0;
 
-      // TODO(shaw) ringers!
-
       var min_dist = 9999;
       var winner = -1;
-      for (var i=0; i<horseshoes.length; i++) {
-        var dist = vec3.distance(horseshoes[i].position, stake);
-        if (dist < 0.17) {
-          if (i < 2) 
-            player1_points++;
-          else
-            player2_points++;
 
-          if (dist < min_dist) {
-            min_dist = dist;
-            winner = i < 2 ? 0 : 1;
+      for (var i=0; i<horseshoes.length; i++) {
+        if (is_ringer(stake, horseshoes[i])) {
+          if (i < 2) {
+            player1_ringers++;
+            player1_points += 3;
+          } else {
+            player2_ringers++;
+            player2_points += 3;
+          }
+
+        } else {
+
+          var dist = vec3.distance(horseshoes[i].position, stake.position);
+          if (dist < 0.17) {
+            if (i < 2) 
+              player1_points++;
+            else
+              player2_points++;
+
+            // Case 4
+            // only closest to stake scores points
+            if (dist < min_dist) {
+              min_dist = dist;
+              winner = i < 2 ? 0 : 1;
+            }
           }
         }
       }
+
+
+      // Case 1 both players got 2 ringers
+      // all points cancelled
+      if (player1_ringers == 2 && player2_ringers == 2) {
+        player1_points = 0;
+        player2_points = 0;
+
+      // Case 2 one player got 2 ringer, other got 1
+      // the player with 2 ringers scores 3
+      } else if (player1_ringers == 2 && player2_ringers == 1) {
+        winner = 0;
+        player1_points = 3;
+      } else if (player2_ringers == 2 && player1_ringers == 1) {
+        winner = 1;
+        player2_points = 3;
+
+      // Case 3 one player got ringer, other didnt
+      // all this players points count
+      } else if (player1_ringers > 0 && player2_ringers == 0) {
+        winner = 0;
+      } else if (player2_ringers > 0 && player1_ringers == 0) {
+        winner = 1;
+      }
+
+      // Case 4 no ringers
+      // only closest to stake scores points
 
       if (winner == 0)
         player2_points = 0;
