@@ -1,6 +1,6 @@
 window.onload = function () {
 
-var { mat2, mat3, mat4, vec2, vec3, vec4 } = glMatrix;
+var { mat4, vec2, vec3, vec4 } = glMatrix;
 
 // globals
 var game_states = {
@@ -18,6 +18,7 @@ var game_states = {
 }
 
 var gravity = -9;
+var elapsed = 0;
 
 var view = mat4.create();
 var closeup_view = mat4.create();
@@ -122,10 +123,10 @@ var players = [
 
 var active_horseshoe = 0;
 var horseshoes = [
-  { position: vec3.create(), velocity: vec3.create(), rotation: vec3.create() },
-  { position: vec3.create(), velocity: vec3.create(), rotation: vec3.create() },
-  { position: vec3.create(), velocity: vec3.create(), rotation: vec3.create() },
-  { position: vec3.create(), velocity: vec3.create(), rotation: vec3.create() }
+  { position: vec3.create(), velocity: vec3.create(), rotation: vec3.create(), width: 0, height: 0 },
+  { position: vec3.create(), velocity: vec3.create(), rotation: vec3.create(), width: 0, height: 0 },
+  { position: vec3.create(), velocity: vec3.create(), rotation: vec3.create(), width: 0, height: 0 },
+  { position: vec3.create(), velocity: vec3.create(), rotation: vec3.create(), width: 0, height: 0 }
 ];
 
 var stake = vec3.fromValues(0, 0, -13);
@@ -179,6 +180,7 @@ function loop(timestamp) {
   update_inputs();
 
   var dt = (timestamp - last_timestamp) * 0.001;
+  elapsed += dt;
   last_timestamp = timestamp;
 
   if (game_state == game_states.START_MENU)
@@ -821,13 +823,21 @@ function init_entities() {
     players[i].y = canvas.height - 470;
   }
 
+  // init horsehsoes
+  for (var i=0; i<horseshoes.length; i++) {
+    vec3.set(horseshoes[i].position, 0,0.3,0);
+    vec3.zero(horseshoes[i].velocity);
+    vec3.set(horseshoes[i].rotation, 0,0,0);
+    horseshoes[i].width = 0.1;
+    horseshoes[i].height = 0.1;
+  }
 }
 
 function reset_horseshoes() {
   for (var i=0; i<horseshoes.length; i++) {
     vec3.set(horseshoes[i].position, 0,0.3,0);
     vec3.zero(horseshoes[i].velocity);
-    vec3.zero(horseshoes[i].rotation);
+    vec3.set(horseshoes[i].rotation, 0,0,0);
   }
   active_horseshoe = 0;
 }
@@ -1042,12 +1052,59 @@ function draw() {
   // draw horseshoes
   for (var i=0; i <= active_horseshoe; i++) {
     var shoe = horseshoes[i];
-    var coords = world_to_screen_coords(shoe.position, view_matrix);
+    
+    var fl = vec3.fromValues(-shoe.width/2, 0, -shoe.height/2);
+    var fr = vec3.fromValues(shoe.width/2, 0, -shoe.height/2);
+    var bl = vec3.fromValues(-shoe.width/2, 0, shoe.height/2);
+    var br = vec3.fromValues(shoe.width/2, 0, shoe.height/2);
+
+    var rot = mat4.create();
+    mat4.fromRotation(rot, shoe.rotation[0], [1,0,0]);
+
+    vec3.transformMat4(fl, fl, rot);
+    vec3.transformMat4(fr, fr, rot);
+    vec3.transformMat4(bl, bl, rot);
+    vec3.transformMat4(br, br, rot);
+
+    //if (count % 16 == 0)
+
+    // translate to shoe position
+    var translate = mat4.create();
+    mat4.fromTranslation(translate, shoe.position);
+    vec3.transformMat4(fl, fl, translate);
+    vec3.transformMat4(fr, fr, translate);
+    vec3.transformMat4(bl, bl, translate);
+    vec3.transformMat4(br, br, translate);
+
+    var fl_coord = world_to_screen_coords(fl, view_matrix);
+    var fr_coord = world_to_screen_coords(fr, view_matrix);
+    var bl_coord = world_to_screen_coords(bl, view_matrix);
+    var br_coord = world_to_screen_coords(br, view_matrix);
+
     //if (count % 16 == 0) 
       //console.log("shoe position: ", shoe.position[0], ", ", shoe.position[1], ", ", shoe.position[2]);
     
-    ctx.fillStyle = i < 2 ? "#FF0000" : "#00FF00";
-    ctx.fillRect(coords[0], coords[1], 10, 10);
+    //ctx.fillStyle = i < 2 ? "#FF0000" : "#00FF00";
+    //ctx.fillStyle = "#FF0000";
+    //ctx.fillRect(coords[0], coords[1], 10, 10);
+    //ctx.fillStyle = "#00FF00";
+    //ctx.fillRect(left_tip[0], left_tip[1], 10, 10);
+    //ctx.fillStyle = "#0000FF";
+    //ctx.fillRect(right_tip[0], right_tip[1], 10, 10);
+
+    ctx.beginPath();
+    ctx.strokeStyle = "#000000";
+    ctx.moveTo(fl_coord[0], fl_coord[1]);
+    ctx.lineTo(fr_coord[0], fr_coord[1]);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.strokeStyle = i < 2 ? "#FF0000" : "#00FF00";
+    ctx.moveTo(fr_coord[0], fr_coord[1]);
+    ctx.lineTo(br_coord[0], br_coord[1]);
+    ctx.lineTo(bl_coord[0], bl_coord[1]);
+    ctx.lineTo(fl_coord[0], fl_coord[1]);
+    ctx.stroke();
+
   }
 
 }
@@ -1373,6 +1430,22 @@ function update_throwing(dt) {
     vec3.set(new_position, new_position[0], ground_height, new_position[2]);
     shoe.velocity[1] = 0;
     vec3.scale(shoe.velocity, shoe.velocity, 0.9);
+
+    // TODO(shaw): make shoe lay flat depending on direction
+    if (shoe.rotation[0] >= 0.5*Math.PI && shoe.rotation[0] <= 1.5*Math.PI) {
+      shoe.rotation[0] = Math.PI;      
+    } else {
+      shoe.rotation[0] = 0;
+    }
+
+  } else {
+
+    //
+    // TODO(shaw): rotate based on each players throw style
+    //
+
+    // only rotate when not grounded
+    shoe.rotation[0] = (shoe.rotation[0] + dt) % (2 * Math.PI);
   }
 
   // commit position change
