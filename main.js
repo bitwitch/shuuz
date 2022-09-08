@@ -122,8 +122,8 @@ var character_select = {
 };
 
 var players = [
-  { id: 0, character_id: 0, x: 0, y: 0, score: 0, shoes_left: 0, active: false },
-  { id: 1, character_id: 0, x: 0, y: 0, score: 0, shoes_left: 0, active: false }
+  { id: 0, character_id: 0, x: 0, y: 0, score: 0, shoes_left: 0, active: false, tutorial_viewed: false },
+  { id: 1, character_id: 0, x: 0, y: 0, score: 0, shoes_left: 0, active: false, tutorial_viewed: false }
 ];
 
 var active_horseshoe = 0;
@@ -988,6 +988,11 @@ Animation.prototype.add_state = function(name, start_index, stop_index, fps) {
   this.states[name] = { start_index, stop_index, fps };
 }
 
+function draw_text_centered_horiz(my_ctx, y, text) {
+  var text_info = my_ctx.measureText(text);
+  var x = 0.5*my_ctx.canvas.width - 0.5*text_info.width;
+  my_ctx.fillText(text, x, y);
+}
 
 function draw() {
   // TODO(shaw): clearRect if backgrounds get moved to a new layer
@@ -1118,6 +1123,7 @@ function draw_ui() {
   ui_ctx.clearRect(0, 0, ui_canvas.width, ui_canvas.height);
 
   var { arc, mini_view, scoreboard, end_of_round_score, numbers } = ui_state;
+  var active_player = get_active_player();
 
   if (arc.active) {
     ui_ctx.drawImage(img_arc, arc.left, arc.top, arc.width, arc.height);
@@ -1227,6 +1233,42 @@ function draw_ui() {
       //score.width, score.height);
   }
 
+  // draw tutorial text boxes
+  if (active_player && !active_player.viewed_tutorial) {
+    var font_size = 24;
+    ui_ctx.font = `bold ${font_size}px serif`;
+    var padding = 15;
+    var tut_x = padding;
+    var tut_y = 0.7*ui_ctx.canvas.height;
+    var box_w = 0.5*ui_ctx.canvas.width;
+    var box_h = 3 * font_size + 2*padding;
+    var box_x = 0.5*ui_ctx.canvas.width - 0.5*box_w;
+    var box_y = tut_y;
+    var box_color = "#FFFFDD99";
+    var text_color = "#000011";
+    var max_text_width = box_w - 2*padding;
+
+    if (turn_state == game_states.HORIZONTAL_POSITION) {
+      ui_ctx.fillStyle = box_color;
+      ui_ctx.fillRect(box_x, box_y, box_w, box_h);
+
+      ui_ctx.fillStyle = text_color;
+      var text1 = "Move mouse left and right to position your shot.";
+      ui_ctx.fillText(text1, box_x + padding, tut_y+font_size+padding, max_text_width);
+      var text2 = "Click left mouse button to lock in your position.";
+      ui_ctx.fillText(text2, box_x + padding, tut_y+2.5*font_size+padding, max_text_width);
+
+    } else if (turn_state == game_states.ANGLE_SELECT) {
+      ui_ctx.fillStyle = box_color;
+      ui_ctx.fillRect(box_x, box_y, box_w, box_h);
+
+      ui_ctx.fillStyle = text_color;
+      var text1 = "Scroll back on mouse wheel to select throw angle.";
+      ui_ctx.fillText(text1, box_x + padding, tut_y+font_size+padding, max_text_width);
+      var text2 = "Scroll forward with velocity on mouse wheel to throw.";
+      ui_ctx.fillText(text2, box_x + padding, tut_y+2.5*font_size+padding, max_text_width);
+    }
+  }
 
   ui_state.dirty = false;
 }
@@ -1292,15 +1334,6 @@ function draw_grid(view_matrix=view, fill=true) {
   }
 }
 
-
-function active_player() {
-  for (var i=0; i<players.length; i++) {
-    if (players[i].active)
-      return players[i];
-  }
-  return null;
-}
-
 function update_new_round(dt) {
   // update round girl's position
   round_girl.x += round_girl.speed * dt;
@@ -1326,7 +1359,7 @@ function update_new_round(dt) {
 }
 
 function update_horizontal_position(dt) {
-  var player = active_player();
+  var player = get_active_player();
   var character = characters[player.character_id];
   player.x = input.mouse.x - character.width/2; 
   var shoe = horseshoes[active_horseshoe];
@@ -1334,6 +1367,7 @@ function update_horizontal_position(dt) {
 
   if (input.mouse.button_left.pressed) {
     turn_state = game_states.ANGLE_SELECT;
+    ui_state.dirty = true;
   }
 }
 
@@ -1346,25 +1380,33 @@ function update_angle_select(dt) {
     // TODO(shaw): calculate throwing velocity based on power and angle
     var velocity = horseshoes[active_horseshoe].velocity;
     vec3.set(velocity, -0.25, 7, -7.9);
-
     turn_state = game_states.THROWING;
+
+    var player = get_active_player();
+    if (player && !player.viewed_tutorial) {
+      player.viewed_tutorial = true;
+      ui_state.dirty = true;
+    }
+
     return;
   }
 
-  if (input.mouse.wheel_delta == 0) return;
+  else if (input.mouse.wheel_delta == 0) 
+    return;
 
-  var fill_amount = ui_state.arc.arc_fill.fill_amount;
-  var fill_max = ui_state.arc.arc_fill.fill_max;
+  else { // wheel_delta > 0
+    var fill_amount = ui_state.arc.arc_fill.fill_amount;
+    var fill_max = ui_state.arc.arc_fill.fill_max;
 
-  // scroll towards body (for my setup. need to handle the opposite configuration as well)
-  fill_amount += input.mouse.wheel_delta;
-  fill_amount = Math.min(Math.max(fill_amount, 0), fill_max);
+    // scroll towards body (for my setup. need to handle the opposite configuration as well)
+    fill_amount += input.mouse.wheel_delta;
+    fill_amount = Math.min(Math.max(fill_amount, 0), fill_max);
 
-  // update fill amount in ui_state
-  ui_state.arc.arc_fill.fill_amount = fill_amount;
+    // update fill amount in ui_state
+    ui_state.arc.arc_fill.fill_amount = fill_amount;
 
-  ui_state.dirty = true;
-
+    ui_state.dirty = true;
+  }
 }
 
 function world_to_ndc(v3, view_matrix=view) {
@@ -1546,7 +1588,7 @@ function update_scoring(dt) {
 
       active_horseshoe++;
 
-      var player = active_player();
+      var player = get_active_player();
       var next_player_id = active_horseshoe < 2 ? 0 : 1;
       player.active = false;
       players[next_player_id].active = true;
