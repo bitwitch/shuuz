@@ -363,7 +363,8 @@ function handle_keydown(e) {
   if (e.key == 'r' && (e.metaKey || e.ctrlKey))
     return;
 
-  e.preventDefault();
+  if (!e.metaKey && !e.ctrlKey)
+    e.preventDefault();
 
   var key = null;
   switch (e.key) {
@@ -543,10 +544,10 @@ function start_menu_loop(dt) {
 }
 
 function start_menu_update(dt) {
-  if (input.key.escape.pressed) {
-    quit = true;
-    return;
-  }
+  //if (input.key.escape.pressed) {
+    //quit = true;
+    //return;
+  //}
 
   // if up or down arrow key pressed, increment or decrement active_button
   if (input.key.down.pressed) {
@@ -598,7 +599,11 @@ function init_character_select() {
     y: 0,
     width: half_width,
     height: half_height - sp_height/2,
-    image: character_select_joe
+    image_team1: character_select_joe_team1,
+    image_team2: character_select_joe_team2,
+    image_selected: character_select_joe_selected,
+    fade_duration: 2,
+    fade_timer: 2,
   });
 
   character_select.images.push({
@@ -607,7 +612,11 @@ function init_character_select() {
     y: 0,
     width: half_width,
     height: half_height - sp_height/2,
-    image: character_select_al
+    image_team1: character_select_al_team1,
+    image_team2: character_select_al_team2,
+    image_selected: character_select_al_selected,
+    fade_duration: 2,
+    fade_timer: 2,
   });
 
   character_select.images.push({
@@ -616,7 +625,11 @@ function init_character_select() {
     y: half_height + sp_height/2,
     width: half_width,
     height: half_height - sp_height/2,
-    image: character_select_sid
+    image_team1: character_select_sid_team1,
+    image_team2: character_select_sid_team2,
+    image_selected: character_select_sid_selected,
+    fade_duration: 2,
+    fade_timer: 2,
   });
 
   character_select.images.push({
@@ -625,7 +638,11 @@ function init_character_select() {
     y: half_height + sp_height/2,
     width: half_width,
     height: half_height - sp_height/2,
-    image: character_select_lefty
+    image_team1: character_select_lefty_team1,
+    image_team2: character_select_lefty_team2,
+    image_selected: character_select_lefty_selected,
+    fade_duration: 2,
+    fade_timer: 2,
   });
 }
 
@@ -635,17 +652,27 @@ function character_select_loop(dt) {
   character_select_update(dt);
 
   // draw character images
-  ctx.filter = 'grayscale(1)';
   for (var i=0; i<cs.images.length; i++) {
     var c = cs.images[i];
 
-    if (cs.active_character == i) {
+    ctx.filter = 'grayscale(1)';
+
+    if (c.was_selected) {
+      // draw the selected image, and fade out over time
+      ctx.filter = 'none'
+      let old_alpha = ctx.globalAlpha;
+      ctx.globalAlha = c.fade_timer;
+      ctx.drawImage(c.image_selected, c.x, c.y, c.width, c.height);
+      ctx.globalAlpha = old_alpha;
+    } else if (cs.active_character == i) {
       ctx.filter = 'none';
-      ctx.drawImage(c.image, c.x, c.y, c.width, c.height);
-      ctx.filter = 'grayscale(1)';
+      if (cs.player_id == 0)
+        ctx.drawImage(c.image_team1, c.x, c.y, c.width, c.height);
+      else
+        ctx.drawImage(c.image_team2, c.x, c.y, c.width, c.height);
     } 
     else
-      ctx.drawImage(c.image, c.x, c.y, c.width, c.height);
+      ctx.drawImage(c.image_team2, c.x, c.y, c.width, c.height);
   }
   ctx.filter = 'none';
 
@@ -681,6 +708,7 @@ function character_select_update(dt) {
   if (input.key.enter.pressed) {
     players[cs.player_id].character_id = cs.active_character;
     cs.player_id++;
+    cs.images[cs.active_character].was_selected = true;
     if (cs.player_id > 1) {
       game_state = game_states.GAME;
       return;
@@ -691,12 +719,14 @@ function character_select_update(dt) {
   for (var i=0; i<cs.images.length; i++) {
     var c = cs.images[i];
 
-    if (collision_point_box(input.mouse, c)) {
+    if (collision_point_box(input.mouse, c) && !c.was_selected) {
       cs.active_character = i;
 
+      // left click on image to select that character
       if (input.mouse.button_left.pressed) {
         players[cs.player_id].character_id = i;
         cs.player_id++;
+        c.was_selected = true;
         if (cs.player_id > 1) {
           game_state = game_states.GAME;
           return;
@@ -704,7 +734,6 @@ function character_select_update(dt) {
       }
     }
   }
-
 }
 
 //
@@ -783,7 +812,8 @@ function init_entities() {
     y: 0,
     width: 250,
     height: 470,
-    image: character_joe
+    image_team1: character_joe_team1,
+    image_team2: character_joe_team2
   });
 
   characters.push({
@@ -792,7 +822,8 @@ function init_entities() {
     y: 0,
     width: 200,
     height: 470,
-    image: character_al
+    image_team1: character_al_team1,
+    image_team2: character_al_team2
   });
 
   characters.push({
@@ -801,7 +832,8 @@ function init_entities() {
     y: 0,
     width: 200,
     height: 470,
-    image: character_sid
+    image_team1: character_sid_team1,
+    image_team2: character_sid_team2
   });
 
   characters.push({
@@ -810,7 +842,8 @@ function init_entities() {
     y: 0,
     width: 200,
     height: 470,
-    image: character_lefty
+    image_team1: character_lefty_team1,
+    image_team2: character_lefty_team2
   });
 
   // init round_girl
@@ -928,10 +961,10 @@ function debug_move_camera(dt) {
 
 var count = 0;
 function update(dt) {
-  if (input.key.escape.pressed) {
-    quit = true;
-    return;
-  }
+  //if (input.key.escape.pressed) {
+    //quit = true;
+    //return;
+  //}
 
   count++;
   //if (count > 1000) quit = true;
@@ -1042,7 +1075,8 @@ function draw() {
       var character = characters[player.character_id];
 
       if (player.active) {
-        ctx.drawImage(character.image, player.x, player.y, character.width, character.height);
+        var image = i == 0 ? character.image_team1 : character.image_team2;
+        ctx.drawImage(image, player.x, player.y, character.width, character.height);
       } else {
         // draw player sitting
       }
